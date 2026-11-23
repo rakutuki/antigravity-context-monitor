@@ -38,7 +38,7 @@ Antigravity users commonly run into two costly pitfalls when working in long ses
 * **Automatic Light / Dark Theme Sync**
   * Follows Antigravity's host theme and CSS variables automatically.
 * **Model Usage Quota Ring Gauges**
-  * Displays **Weekly limit** / **5h limit** remaining percentages and reset countdowns across model groups (**Gemini Models**, **Claude and GPT models**, **Gemini 4 Argon**) via local Language Server RPC.
+  * Displays **Weekly limit** / **5h limit** remaining percentages and reset countdowns across model groups (**Gemini Models**, **Claude and GPT models**) via local Language Server RPC.
 * **Zero External Dependencies**
   * Pure Python standard library (`python >= 3.9`) using the official MCP App (`ui://` + `aux_pane`) specification—no app binary patching required.
 

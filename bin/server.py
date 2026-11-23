@@ -165,7 +165,7 @@ def handle_request(req: dict, data_dir: Path = None):
                 },
                 "serverInfo": {
                     "name": "context-monitor",
-                    "version": "1.0.0"
+                    "version": "1.0.1"
                 }
             })
         elif isinstance(method, str) and method.startswith("notifications/"):

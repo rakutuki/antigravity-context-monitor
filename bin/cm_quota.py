@@ -198,7 +198,7 @@ def normalize_special_model_name(label: str) -> str:
 
 def fetch_usage_quotas() -> tuple:
     """
-    Usage（Gemini Models / Claude and GPT models / Gemini 4 Argon の Weekly limit & 5h limit）を取得。
+    Usage（Gemini Models / Claude and GPT models 等の Weekly limit & 5h limit）を取得。
     (groups_out, status) を返す。status は "ok" または "unavailable"。
     ok 時は10秒、unavailable 時は2秒キャッシュして早期リトライを可能にする。
     """
@@ -278,10 +278,10 @@ def fetch_usage_quotas() -> tuple:
                     "items": items,
                 })
 
-    # 2. GetUserStatus から個別モデル枠（Gemini 4 Argon）またはフォールバックを取得
-    # エンドポイントが1つも応答しなかった場合は再走査を省いてタイムアウト遅延を防ぐ
+    # 2. RetrieveUserQuotaSummary でグループが取れなかった場合のみ GetUserStatus へフォールバック
+    # （Argon 専用枠は廃止され Gemini Models に統合されたため、個別グループは生成しない）
     status_res = None
-    if _WORKING_LS_ENDPOINT is not None or isinstance(res, dict):
+    if not groups_out and (_WORKING_LS_ENDPOINT is not None or isinstance(res, dict)):
         status_res = call_ls_rpc("GetUserStatus", {
             "metadata": {
                 "ideName": "antigravity",
@@ -295,7 +295,6 @@ def fetch_usage_quotas() -> tuple:
         cascade_data = user_status.get("cascadeModelConfigData") or {}
         model_configs = cascade_data.get("clientModelConfigs") or []
 
-        argon_best = None
         gemini_5h = None
         other_5h = None
 
@@ -309,43 +308,25 @@ def fetch_usage_quotas() -> tuple:
             reset_in = format_reset_duration(qinfo.get("resetTime") or "")
             ll = label.lower()
 
-            if "argon" in ll:
-                if argon_best is None or pct_left < argon_best[0]:
-                    argon_best = (pct_left, reset_in)
-            elif "gemini" in ll or "neon" in ll:
+            if any(k in ll for k in ("gemini", "neon", "carbon", "argon", "hydrogen", "flash")):
                 if gemini_5h is None or pct_left < gemini_5h[0]:
                     gemini_5h = (pct_left, reset_in)
-            elif any(k in ll for k in ("claude", "gpt", "sonnet", "opus", "haiku", "o1", "o3")):
+            elif any(k in ll for k in ("claude", "gpt", "sonnet", "opus", "haiku", "o1", "o3", "o4")):
                 if other_5h is None or pct_left < other_5h[0]:
                     other_5h = (pct_left, reset_in)
 
-        if not groups_out:
-            if gemini_5h:
-                groups_out.append({
-                    "groupName": "Gemini Models",
-                    "inlineSingle": False,
-                    "items": [{"windowLabel": "5h limit", "percentLeft": gemini_5h[0], "resetIn": gemini_5h[1]}]
-                })
-            if other_5h:
-                groups_out.append({
-                    "groupName": "Claude and GPT models",
-                    "inlineSingle": False,
-                    "items": [{"windowLabel": "5h limit", "percentLeft": other_5h[0], "resetIn": other_5h[1]}]
-                })
-            if argon_best:
-                groups_out.append({
-                    "groupName": "Gemini 4 Argon",
-                    "inlineSingle": True,
-                    "items": [{"windowLabel": "Weekly limit", "percentLeft": argon_best[0], "resetIn": argon_best[1]}]
-                })
-        else:
-            existing_names = {g["groupName"].lower() for g in groups_out}
-            if argon_best and "gemini 4 argon" not in existing_names:
-                groups_out.append({
-                    "groupName": "Gemini 4 Argon",
-                    "inlineSingle": True,
-                    "items": [{"windowLabel": "Weekly limit", "percentLeft": argon_best[0], "resetIn": argon_best[1]}]
-                })
+        if gemini_5h:
+            groups_out.append({
+                "groupName": "Gemini Models",
+                "inlineSingle": False,
+                "items": [{"windowLabel": "5h limit", "percentLeft": gemini_5h[0], "resetIn": gemini_5h[1]}]
+            })
+        if other_5h:
+            groups_out.append({
+                "groupName": "Claude and GPT models",
+                "inlineSingle": False,
+                "items": [{"windowLabel": "5h limit", "percentLeft": other_5h[0], "resetIn": other_5h[1]}]
+            })
 
     status = "ok" if (any_rpc_succeeded or len(groups_out) > 0) else "unavailable"
     _QUOTA_CACHE["timestamp"] = datetime.now().timestamp()

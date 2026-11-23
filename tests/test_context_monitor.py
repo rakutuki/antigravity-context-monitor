@@ -798,6 +798,69 @@ class TestSessionAndQuotaHelpers(unittest.TestCase):
             self.assertEqual(status3, "ok")
             spy_rpc.assert_not_called()
 
+    def test_fetch_usage_quotas_does_not_fabricate_argon_group_when_summary_present(self):
+        """RetrieveUserQuotaSummary が 2 グループを返したとき、廃止済み Argon 専用枠を追加せず GetUserStatus も呼ばないこと"""
+        cm_quota._QUOTA_CACHE = {"timestamp": 0, "data": None, "status": "unavailable"}
+        summary_res = {
+            "response": {
+                "groups": [
+                    {
+                        "displayName": "Gemini Models",
+                        "buckets": [
+                            {"window": "weekly", "remainingFraction": 0.98, "resetTime": ""},
+                            {"window": "5h", "remainingFraction": 0.92, "resetTime": ""},
+                        ],
+                    },
+                    {
+                        "displayName": "Claude and GPT models",
+                        "buckets": [
+                            {"window": "weekly", "remainingFraction": 1.0, "resetTime": ""},
+                            {"window": "5h", "remainingFraction": 1.0, "resetTime": ""},
+                        ],
+                    },
+                ]
+            }
+        }
+        with mock.patch.object(cm_quota, "call_ls_rpc", return_value=summary_res) as spy_rpc:
+            groups, status = cm_quota.fetch_usage_quotas()
+
+        self.assertEqual(status, "ok")
+        self.assertEqual([g["groupName"] for g in groups], ["Gemini Models", "Claude and GPT models"])
+        self.assertEqual(spy_rpc.call_count, 1)
+        self.assertEqual(spy_rpc.call_args[0][0], "RetrieveUserQuotaSummary")
+
+    def test_fetch_usage_quotas_fallback_merges_argon_into_gemini_models(self):
+        """GetUserStatus フォールバック時も Argon を独立グループにせず Gemini Models へ統合すること"""
+        cm_quota._QUOTA_CACHE = {"timestamp": 0, "data": None, "status": "unavailable"}
+
+        def fake_rpc(method_name, payload=None):
+            if method_name == "RetrieveUserQuotaSummary":
+                return None
+            if method_name == "GetUserStatus":
+                return {
+                    "userStatus": {
+                        "cascadeModelConfigData": {
+                            "clientModelConfigs": [
+                                {"label": "Gemini 4 Neon (High)", "quotaInfo": {"remainingFraction": 0.95}},
+                                {"label": "Gemini 4 Carbon (Medium)", "quotaInfo": {"remainingFraction": 0.95}},
+                                {"label": "Gemini 4 Argon (Low)", "quotaInfo": {"remainingFraction": 0.88}},
+                                {"label": "Claude Sonnet 5.5 (High)", "quotaInfo": {"remainingFraction": 1.0}},
+                            ]
+                        }
+                    }
+                }
+            return None
+
+        with mock.patch.object(cm_quota, "_WORKING_LS_ENDPOINT", ("127.0.0.1:50509", "tok", "http")), \
+             mock.patch.object(cm_quota, "call_ls_rpc", side_effect=fake_rpc):
+            groups, status = cm_quota.fetch_usage_quotas()
+
+        self.assertEqual(status, "ok")
+        self.assertEqual([g["groupName"] for g in groups], ["Gemini Models", "Claude and GPT models"])
+        self.assertEqual(groups[0]["items"][0]["windowLabel"], "5h limit")
+        self.assertEqual(groups[0]["items"][0]["percentLeft"], 88)
+        self.assertEqual(groups[1]["items"][0]["percentLeft"], 100)
+
 
 class TestServerJsonRpc(unittest.TestCase):
     """server.py の JSON-RPC 処理（main / handle_request）のテスト"""

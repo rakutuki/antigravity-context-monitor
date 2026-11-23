@@ -38,7 +38,7 @@
 * **浅色 / 深色主题自动适配**
   * 自动同步 Antigravity 主应用的主题配色与 CSS 变量。
 * **分模型用量配额（Usage）环形指示器**
-  * 在底部卡片展示 **Gemini Models** / **Claude and GPT models** / **Gemini 4 Argon** 等模型组的 **每周限额（Weekly limit）** 与 **5小时限额（5h limit）** 剩余百分比及重置倒计时。
+  * 在底部卡片展示 **Gemini Models** / **Claude and GPT models** 等模型组的 **每周限额（Weekly limit）** 与 **5小时限额（5h limit）** 剩余百分比及重置倒计时。
 * **零外部依赖・纯本地安全运行**
   * 仅依赖 Python 标准库（Python 3.9+），采用官方 MCP App（`ui://` + `aux_pane`）规范，无需任何第三方包或对应用本体打补丁。
 

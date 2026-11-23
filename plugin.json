@@ -2,7 +2,7 @@
   "name": "context-monitor",
   "displayName": "Context Monitor",
   "description": "Monitor current session context usage (token breakdown, target limit bar, and model Usage quotas) in the Antigravity side pane, with one-click /compact copy and multi-language UI (English / Japanese / Simplified Chinese).",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
     "Open Context Monitor in the side pane to check current session usage",
