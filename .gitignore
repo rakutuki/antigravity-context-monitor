@@ -1,0 +1,14 @@
+# Python キャッシュ
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS 生成ファイル
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 一時ファイル・ローカルデータ
+*.tmp
+*.log
+settings.json

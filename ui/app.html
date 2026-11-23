@@ -1,0 +1,2061 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Context Monitor</title>
+<style>
+  :root {
+    --bg-primary: var(--color-background-primary, #14161a);
+    --bg-secondary: var(--color-background-secondary, #1c1f26);
+    --bg-tertiary: var(--color-background-tertiary, #262a34);
+    --text-primary: var(--color-text-primary, #f1f5f9);
+    --text-secondary: var(--color-text-secondary, #94a3b8);
+    --text-tertiary: var(--color-text-tertiary, #64748b);
+    --border-primary: var(--color-border-primary, #2a2f3a);
+    --hover-border: #3b4252;
+    --btn-hover-bg: #333947;
+    --btn-border: #3b4252;
+    --btn-hover-border: #4f586e;
+    --toast-bg: #1e293b;
+    --toast-text: #f8fafc;
+    --toast-border: #334155;
+    --accent-blue: #3b82f6;
+    --accent-orange: #f97316;
+    --accent-green: #10b981;
+    --accent-yellow: #eab308;
+    --accent-gray: #94a3b8;
+    --accent-darkgray: #64748b;
+    --buffer-color: #475569;
+  }
+
+  :root[data-theme="light"] {
+    --bg-primary: var(--color-background-primary, #ffffff);
+    --bg-secondary: var(--color-background-secondary, #f8fafc);
+    --bg-tertiary: var(--color-background-tertiary, #e2e8f0);
+    --text-primary: var(--color-text-primary, #0f172a);
+    --text-secondary: var(--color-text-secondary, #475569);
+    --text-tertiary: var(--color-text-tertiary, #64748b);
+    --border-primary: var(--color-border-primary, #cbd5e1);
+    --hover-border: #94a3b8;
+    --btn-hover-bg: #cbd5e1;
+    --btn-border: #cbd5e1;
+    --btn-hover-border: #94a3b8;
+    --toast-bg: #0f172a;
+    --toast-text: #f8fafc;
+    --toast-border: #334155;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif);
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 14px 16px;
+    user-select: none;
+    overflow-x: hidden;
+  }
+
+  /* コンテナ */
+  .container {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  /* ヘッダー（コンテキスト + 操作ボタン） */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 3px 7px;
+    border-radius: 6px;
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+  }
+
+  .icon-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-primary);
+  }
+
+  /* シンプルバー領域（クリックで開閉可能） */
+  .simple-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .simple-card:hover {
+    border-color: var(--hover-border);
+  }
+
+  .usage-summary-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .session-subtitle {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: -4px;
+    margin-bottom: 7px;
+  }
+
+  .usage-left {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .usage-percent {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .usage-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .usage-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .chevron {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    line-height: 16px;
+    text-align: center;
+    color: var(--text-secondary);
+    transition: transform 0.2s ease;
+    font-size: 11px;
+  }
+
+  .expanded .chevron {
+    transform: rotate(180deg);
+  }
+
+  /* マルチセグメント・プログレスバー */
+  .progress-track {
+    width: 100%;
+    height: 6px;
+    background: var(--bg-tertiary);
+    border-radius: 999px;
+    overflow: hidden;
+    display: flex;
+    gap: 1.5px;
+  }
+
+  .progress-segment {
+    height: 100%;
+    transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    min-width: 0;
+  }
+
+  .progress-segment:first-child {
+    border-top-left-radius: 999px;
+    border-bottom-left-radius: 999px;
+  }
+
+  /* 展開される詳細パネル */
+  .details-panel {
+    display: none;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-primary);
+    animation: fadeIn 0.18s ease-out;
+  }
+
+  .expanded .details-panel {
+    display: block;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 圧縮の目安上限 */
+  .threshold-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .threshold-title {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .threshold-select {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .threshold-select:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-primary);
+  }
+
+  .threshold-select option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  .threshold-desc {
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+    line-height: 1.45;
+    margin-bottom: 14px;
+  }
+
+  /* カテゴリ別リスト */
+  .category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .category-item {
+    display: grid;
+    grid-template-columns: 14px 1fr auto 52px;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    padding: 2px 0;
+  }
+
+  .cat-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 2.5px;
+  }
+
+  .cat-name {
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cat-name.underlined {
+    text-decoration: underline;
+    text-decoration-color: rgba(148, 163, 184, 0.35);
+    text-underline-offset: 3px;
+  }
+
+  .cat-tokens {
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .cat-pct {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border-primary);
+    margin: 10px 0;
+  }
+
+  /* 折りたたみサブセクション（ツール内訳・セッション切り替え） */
+  .sub-accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 0;
+  }
+
+  .sub-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    cursor: pointer;
+    padding: 3px 0;
+  }
+
+  .sub-header:hover {
+    color: var(--text-primary);
+  }
+
+  .sub-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sub-arrow {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    transition: transform 0.15s ease;
+    display: inline-block;
+  }
+
+  .sub-open .sub-arrow {
+    transform: rotate(90deg);
+  }
+
+  .sub-body {
+    display: none;
+    padding: 6px 8px 6px 16px;
+    background: var(--bg-primary);
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+  }
+
+  .sub-open .sub-body {
+    display: block;
+  }
+
+  .tool-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+  }
+
+  /* フッター：自動コンパクトまで & セッションを圧縮ボタン */
+  .compact-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-primary);
+  }
+
+  .compact-remaining {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  .compact-btn {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--btn-border);
+    border-radius: 7px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .compact-btn:hover {
+    background: var(--btn-hover-bg);
+    border-color: var(--btn-hover-border);
+  }
+
+  .compact-btn:active {
+    transform: scale(0.98);
+  }
+
+  /* セッション選択 & 成果物セクション */
+  .extra-section {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-primary);
+  }
+
+  .extra-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .session-select {
+    width: 100%;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+    outline: none;
+  }
+
+  .artifact-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .artifact-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .artifact-item:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+  }
+
+  /* Usage（クォータ残量）カード */
+  .usage-card {
+    margin-top: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .usage-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+
+  .usage-group {
+    margin-bottom: 14px;
+  }
+
+  .usage-group:last-child {
+    margin-bottom: 0;
+  }
+
+  .usage-group-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+
+  .usage-bucket-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .usage-bucket-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .usage-bucket-left {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .usage-window-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .usage-reset-label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  .usage-bucket-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    padding-top: 1px;
+  }
+
+  .ring-gauge {
+    width: 18px;
+    height: 18px;
+    transform: rotate(-90deg);
+    flex-shrink: 0;
+  }
+
+  .ring-bg {
+    fill: none;
+    stroke: var(--bg-tertiary);
+    stroke-width: 2.4;
+  }
+
+  .ring-fg {
+    fill: none;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.35s ease;
+  }
+
+  .usage-mini-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    cursor: pointer;
+  }
+
+  .usage-mini-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+  }
+
+  .usage-mini-chip-pct {
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .ring-gauge-sm {
+    width: 13px;
+    height: 13px;
+    transform: rotate(-90deg);
+    flex-shrink: 0;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 12px;
+    right: 12px;
+    background: var(--toast-bg);
+    color: var(--toast-text);
+    border: 1px solid var(--toast-border);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .toast.show {
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <!-- 上部タイトルと更新トグル -->
+    <div class="section-header">
+      <div class="section-title">
+        <span class="live-dot" id="liveDot" title="自動更新ON (5秒おき)"></span>
+        <span id="headerTitle">コンテキスト</span>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="refreshBtn" title="今すぐ最新のログを集計">↻ 更新</button>
+        <button class="icon-btn" id="toggleExpandBtn" title="シンプル表示 / 詳細表示を切り替え">詳細 ▾</button>
+      </div>
+    </div>
+
+    <!-- メインカード（シンプル版はバーのみ、クリックで詳細展開） -->
+    <div class="simple-card" id="mainCard">
+      <div class="usage-summary-row" id="summaryHeader">
+        <div class="usage-left">
+          <span class="usage-percent" id="usagePercentText">0%</span>
+          <span class="usage-label" id="usageLabel">使用</span>
+        </div>
+        <div class="usage-right">
+          <span id="usageFractionText">0 / 400k</span>
+          <span class="chevron" id="mainChevron" title="クリックで詳細を展開/折りたたみ">▾</span>
+        </div>
+      </div>
+
+      <!-- 監視対象セッション名 -->
+      <div class="session-subtitle" id="sessionSubtitle"></div>
+
+      <!-- マルチカラー・プログレスバー -->
+      <div class="progress-track" id="progressTrack">
+        <div class="progress-segment" style="width: 5%; background: #3b82f6;"></div>
+      </div>
+
+      <!-- 展開時の詳細エリア（クリックイベントの伝播を止める） -->
+      <div class="details-panel" id="detailsPanel">
+        <!-- 圧縮の目安上限 -->
+        <div class="threshold-row">
+          <span class="threshold-title" id="thresholdTitle">圧縮の目安上限</span>
+          <select class="threshold-select" id="thresholdSelect">
+            <option value="200000">200k</option>
+            <option value="400000" selected>400k</option>
+            <option value="1000000">1,000k</option>
+            <option value="2000000">2,000k</option>
+          </select>
+        </div>
+        <div class="threshold-desc" id="thresholdDesc">
+          バーの100%基準と /compact 実行の目安値です。<br/>
+          ※ Antigravity 本体の自動圧縮設定は変更されません。
+        </div>
+
+        <!-- カテゴリ別トークン内訳 -->
+        <div class="category-list" id="categoryList"></div>
+
+        <div class="divider"></div>
+
+        <!-- バッファと空き容量 -->
+        <div class="category-list" id="capacityList"></div>
+
+        <div class="divider"></div>
+
+        <!-- キャッシュヒット率・最新ターン詳細 -->
+        <div class="category-list" id="cacheList"></div>
+
+        <!-- 折りたたみ項目（実行ツール内訳 / Skills） -->
+        <div class="sub-accordion">
+          <div id="toolsSubSection">
+            <div class="sub-header" id="toolsSubHeader">
+              <div class="sub-header-left">
+                <span class="sub-arrow">❯</span>
+                <span id="toolsHeaderLabel">ツール呼び出し回数</span>
+              </div>
+              <span id="toolsTotalCount">0</span>
+            </div>
+            <div class="sub-body" id="toolsSubBody"></div>
+          </div>
+
+          <div id="skillsSubSection">
+            <div class="sub-header" id="skillsSubHeader">
+              <div class="sub-header-left">
+                <span class="sub-arrow">❯</span>
+                <span id="skillsHeaderLabel">利用可能な Skills</span>
+              </div>
+              <span id="skillsTotalCount">0</span>
+            </div>
+            <div class="sub-body" id="skillsSubBody">
+              システムおよびグローバル設定から読み込まれたスキル定義数です。
+            </div>
+          </div>
+        </div>
+
+        <!-- 目安上限までの残量 & /compact コピーボタン -->
+        <div class="compact-footer">
+          <span class="compact-remaining" id="remainingCompactText">目安まであと -- トークン</span>
+          <button class="compact-btn" id="compactBtn" title="/compact をクリップボードにコピーします（チャット欄に貼り付けて実行してください）">/compact をコピー</button>
+        </div>
+
+        <!-- 成果物（Artifacts）リスト -->
+        <div class="extra-section" id="artifactsSection" style="display:none;">
+          <div class="extra-title" id="artifactsTitle">成果物</div>
+          <div class="artifact-list" id="artifactList"></div>
+        </div>
+
+        <!-- セッション切り替え -->
+        <div class="extra-section">
+          <div class="extra-title">
+            <span id="sessionHeaderLabel">監視セッション</span>
+            <span id="updatedAtText" style="font-weight:400; font-size:11px; color:var(--text-tertiary);"></span>
+          </div>
+          <select class="session-select" id="sessionSelect"></select>
+        </div>
+
+        <!-- 表示言語設定 -->
+        <div class="extra-section">
+          <div class="threshold-row" style="margin-bottom:0;">
+            <span class="threshold-title" id="languageLabel">表示言語 / Language</span>
+            <select class="threshold-select" id="languageSelect">
+              <option value="auto">Auto</option>
+              <option value="ja">日本語</option>
+              <option value="en">English</option>
+              <option value="zh">简体中文</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Usage（モデル別クォータ残量）カード -->
+    <div class="usage-card" id="usageCard" style="display:none;">
+      <div class="usage-card-header" id="usageCardHeader" title="クリックでUsage詳細を展開/最小化" style="margin-bottom:0;">
+        <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+          <span id="usageCardTitle" style="font-weight:600; color:var(--text-primary); font-size:13px;">Usage</span>
+          <span id="usageActiveModelLabel" style="font-size:12px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+          <span id="usageMinimizedSummary" style="display:inline-flex; align-items:center; gap:7px; font-size:13px; color:var(--text-secondary); font-variant-numeric:tabular-nums;"></span>
+          <span class="chevron" id="usageChevron">▾</span>
+        </div>
+      </div>
+      <div class="usage-mini-list" id="usageMinimizedList" style="display:none;" title="クリックでUsage詳細を展開"></div>
+      <div id="usageGroupsContainer" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border-primary);"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  const AUTO_FOLLOW_VALUE = "__auto__";
+  const RPC_TIMEOUT_MS = 15000;
+
+  // XSS対策用HTMLエスケープヘルパー
+  function escapeHtml(str) {
+    return String(str == null ? "" : str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  // CSSカラー値の簡易サニタイズ
+  function sanitizeColor(color, fallback) {
+    const c = String(color || "").trim();
+    if (/^#[0-9a-fA-F]{3,8}$/.test(c) || /^rgba?\([^)]+\)$/.test(c) || /^[a-zA-Z]+$/.test(c)) {
+      return c;
+    }
+    return fallback || "#94a3b8";
+  }
+
+  // トークン数の k 表記フォーマット（例: 500 / 1.5k / 136k / 400k / 1,000k）
+  function formatTokens(num) {
+    num = Number(num) || 0;
+    if (num < 1000) {
+      return Math.round(num).toLocaleString("en-US");
+    }
+    if (num < 10000) {
+      return (num / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+    }
+    return Math.round(num / 1000).toLocaleString("en-US") + "k";
+  }
+
+  // 多言語辞書（日本語 / 英語 / 簡体字中国語）
+  const I18N = {
+    ja: {
+      headerTitle: "コンテキスト",
+      liveDotTitle: "自動更新ON (5秒おき)",
+      refreshBtn: "↻ 更新",
+      refreshBtnTitle: "今すぐ最新のログを集計",
+      expandDetails: "詳細 ▾",
+      expandCompact: "シンプル ▴",
+      toggleExpandTitle: "シンプル表示 / 詳細表示を切り替え",
+      usageUsed: "使用",
+      mainChevronTitle: "クリックで詳細を展開/折りたたみ",
+      thresholdTitle: "圧縮の目安上限",
+      thresholdDescHtml: "バーの100%基準と /compact 実行の目安値です。<br/>※ Antigravity 本体の自動圧縮設定は変更されません。",
+      toolsHeader: "ツール呼び出し回数",
+      skillsHeader: "利用可能な Skills",
+      skillsDesc: "システムおよびグローバル設定から読み込まれたスキル定義数です。",
+      remainingCompactPlaceholder: "目安まであと -- トークン",
+      remainingCompact: (tok) => `目安まであと ${tok} トークン`,
+      compactBtn: "/compact をコピー",
+      compactBtnTitle: "/compact をクリップボードにコピーします（チャット欄に貼り付けて実行してください）",
+      artifactsTitle: "成果物",
+      sessionHeader: "監視セッション",
+      updatedAt: (ts) => `最終更新: ${ts}`,
+      newSessionTitle: "新規セッション (未送信)",
+      pinnedPrefix: "固定",
+      pinnedTooltip: (t) => `固定表示中: ${t}`,
+      latestPrefix: "最新",
+      latestTooltip: (t) => `自動追従中: ${t}（新規チャット未送信時は直前のアクティブセッションを表示）`,
+      autoFollowWithTitle: (t) => `🔄 自動追従（現在: ${t}）`,
+      autoFollowDefault: "🔄 自動追従（アクティブセッション）",
+      freeLabel: "空き容量",
+      freeTitle: "目安上限までの空きトークン容量",
+      cachedLabel: "キャッシュ済みコンテキスト",
+      cachedTitle: "直近ターンのPrompt Cache読み取りトークン量",
+      stepsLabel: "会話ステップ数",
+      stepsTitle: "現在のセッションの総ステップ数",
+      noToolsYet: "まだツールは実行されていません。",
+      toolCount: (n) => `${n} 回`,
+      languageLabel: "表示言語 / Language",
+      usageCardTitle: "使用量",
+      usageHeaderTitle: "クリックで使用量詳細を展開/最小化",
+      usageMiniListTitle: "クリックで使用量詳細を展開",
+      windowWeekly: "週間上限",
+      window5h: "5時間上限",
+      percentLeft: (pct) => `残り ${pct}%`,
+      resetsIn: (dur) => `リセットまで ${dur}`,
+      inlineSubWithReset: (win, dur) => `${win}・リセットまで ${dur}`,
+      resetSoon: "まもなく",
+      quotaLoadingShort: "取得中...",
+      quotaLoadingTitle: "Language Server から使用量を取得しています",
+      quotaLoadingSummary: "...",
+      quotaLoadingMsg: "Language Server からクォータ情報を取得しています...",
+      quotaUnavailableShort: "取得不可",
+      quotaUnavailableTitle: "Language Server に接続できないため使用量を取得できません",
+      quotaUnavailableSummary: "LS未接続",
+      quotaUnavailableMsg: "Language Server からクォータ情報を取得できませんでした。",
+      toastOpenPaneUnsupported: "この画面ではファイルを開けません",
+      toastOpenPaneFailed: "ファイルを開けませんでした",
+      toastRefreshed: "最新のコンテキスト情報を更新しました",
+      toastRefreshingBusy: "更新処理中です...",
+      toastRefreshFailed: (e) => `更新に失敗しました: ${e}`,
+      toastCopiedCompact: "/compact をコピーしました。チャット欄に貼り付けて送信してください",
+      toastCopyFailed: "クリップボードへのコピーに失敗しました",
+      unknownError: "不明なエラー",
+      errTool: "ツールエラー",
+      errEmptyResponse: "応答データが空です",
+      errRpc: "RPCエラー",
+      catLabel: {
+        messages: "メッセージ",
+        system_tools: "システムツール",
+        mcp_tools: "MCP ツール",
+        system_prompt: "システムプロンプト",
+        skills: "Skills",
+        memory_files: "メモリファイル / Rules",
+      },
+      catDetail: {
+        messages: (steps) => `ユーザー入力 + エージェント応答 (${steps} ステップ)`,
+        system_tools: (calls) => `組み込みツールスキーマ & 実行結果 (${calls} 回実行)`,
+        mcp_tools: () => "MCP ツール定義 & レスポンス",
+        system_prompt: () => "コア指示・ガイドライン・環境メタデータ",
+        skills: () => "スキルカタログ & 読み込まれた SKILL.md",
+        memory_files: () => "グローバルルール (GEMINI.md / AGENTS.md)",
+      },
+    },
+    en: {
+      headerTitle: "Context",
+      liveDotTitle: "Auto-refresh ON (every 5s)",
+      refreshBtn: "↻ Refresh",
+      refreshBtnTitle: "Refresh context usage now",
+      expandDetails: "Details ▾",
+      expandCompact: "Compact ▴",
+      toggleExpandTitle: "Toggle compact / detailed view",
+      usageUsed: "used",
+      mainChevronTitle: "Click to expand/collapse details",
+      thresholdTitle: "Target context limit",
+      thresholdDescHtml: "Reference 100% scale and guide for running /compact.<br/>Note: Does not change Antigravity's auto-compact setting.",
+      toolsHeader: "Tool calls",
+      skillsHeader: "Available Skills",
+      skillsDesc: "Number of skill definitions loaded from system and global configs.",
+      remainingCompactPlaceholder: "-- tokens until target",
+      remainingCompact: (tok) => `${tok} tokens until target`,
+      compactBtn: "Copy /compact",
+      compactBtnTitle: "Copy /compact to clipboard (paste into the chat input to execute)",
+      artifactsTitle: "Artifacts",
+      sessionHeader: "Session",
+      updatedAt: (ts) => `Updated: ${ts}`,
+      newSessionTitle: "New Session (Unsent)",
+      pinnedPrefix: "Pinned",
+      pinnedTooltip: (t) => `Pinned session: ${t}`,
+      latestPrefix: "Latest",
+      latestTooltip: (t) => `Auto-following: ${t} (shows previous active session before 1st message in new chat)`,
+      autoFollowWithTitle: (t) => `🔄 Auto-follow (Current: ${t})`,
+      autoFollowDefault: "🔄 Auto-follow (Active session)",
+      freeLabel: "Free space",
+      freeTitle: "Remaining tokens until target limit",
+      cachedLabel: "Cached context",
+      cachedTitle: "Prompt Cache read tokens in the latest turn",
+      stepsLabel: "Conversation steps",
+      stepsTitle: "Total steps in the current session",
+      noToolsYet: "No tools called yet.",
+      toolCount: (n) => `${n}x`,
+      languageLabel: "Language",
+      usageCardTitle: "Usage",
+      usageHeaderTitle: "Click to expand/collapse Usage details",
+      usageMiniListTitle: "Click to expand Usage details",
+      windowWeekly: "Weekly limit",
+      window5h: "5h limit",
+      percentLeft: (pct) => `${pct}% left`,
+      resetsIn: (dur) => `Resets in ${dur}`,
+      inlineSubWithReset: (win, dur) => `${win}, resets in ${dur}`,
+      resetSoon: "soon",
+      quotaLoadingShort: "Loading...",
+      quotaLoadingTitle: "Fetching usage quota from Language Server",
+      quotaLoadingSummary: "...",
+      quotaLoadingMsg: "Fetching quota information from Language Server...",
+      quotaUnavailableShort: "Unavailable",
+      quotaUnavailableTitle: "Cannot fetch usage because Language Server is offline",
+      quotaUnavailableSummary: "LS offline",
+      quotaUnavailableMsg: "Failed to fetch quota information from Language Server.",
+      toastOpenPaneUnsupported: "Cannot open files from this view",
+      toastOpenPaneFailed: "Failed to open file",
+      toastRefreshed: "Context usage updated",
+      toastRefreshingBusy: "Refresh in progress...",
+      toastRefreshFailed: (e) => `Refresh failed: ${e}`,
+      toastCopiedCompact: "Copied /compact. Paste it into the chat input to run.",
+      toastCopyFailed: "Failed to copy to clipboard",
+      unknownError: "Unknown error",
+      errTool: "Tool error",
+      errEmptyResponse: "Empty response data",
+      errRpc: "RPC error",
+      catLabel: {
+        messages: "Messages",
+        system_tools: "System Tools",
+        mcp_tools: "MCP Tools",
+        system_prompt: "System Prompt",
+        skills: "Skills",
+        memory_files: "Memory Files / Rules",
+      },
+      catDetail: {
+        messages: (steps) => `User input + assistant responses (${steps} steps)`,
+        system_tools: (calls) => `Built-in tool schemas & results (${calls} calls)`,
+        mcp_tools: () => "MCP tool definitions & responses",
+        system_prompt: () => "Core instructions, guidelines & environment metadata",
+        skills: () => "Skill catalog & loaded SKILL.md files",
+        memory_files: () => "Global rules (GEMINI.md / AGENTS.md)",
+      },
+    },
+    zh: {
+      headerTitle: "上下文",
+      liveDotTitle: "自动刷新已开启（每5秒）",
+      refreshBtn: "↻ 刷新",
+      refreshBtnTitle: "立即刷新最新上下文日志",
+      expandDetails: "详情 ▾",
+      expandCompact: "简洁 ▴",
+      toggleExpandTitle: "切换简洁视图 / 详情视图",
+      usageUsed: "已使用",
+      mainChevronTitle: "点击展开/折叠详情",
+      thresholdTitle: "压缩参考上限",
+      thresholdDescHtml: "进度条 100% 基准与执行 /compact 的参考值。<br/>※ 不会更改 Antigravity 本体的自动压缩设置。",
+      toolsHeader: "工具调用次数",
+      skillsHeader: "可用 Skills",
+      skillsDesc: "从系统及全局配置中加载的技能定义数量。",
+      remainingCompactPlaceholder: "距离上限还剩 -- tokens",
+      remainingCompact: (tok) => `距离上限还剩 ${tok} tokens`,
+      compactBtn: "复制 /compact",
+      compactBtnTitle: "将 /compact 复制到剪贴板（请粘贴到聊天输入框中执行）",
+      artifactsTitle: "产物文件",
+      sessionHeader: "监控会话",
+      updatedAt: (ts) => `最后更新: ${ts}`,
+      newSessionTitle: "新会话（未发送）",
+      pinnedPrefix: "已固定",
+      pinnedTooltip: (t) => `已固定会话: ${t}`,
+      latestPrefix: "最新",
+      latestTooltip: (t) => `自动跟随中: ${t}（新聊天发送首条消息前显示上一个活跃会话）`,
+      autoFollowWithTitle: (t) => `🔄 自动跟随（当前: ${t}）`,
+      autoFollowDefault: "🔄 自动跟随（活跃会话）",
+      freeLabel: "剩余空间",
+      freeTitle: "距离参考上限的剩余 Token 容量",
+      cachedLabel: "已缓存上下文",
+      cachedTitle: "最近一轮 Prompt Cache 读取的 Token 数量",
+      stepsLabel: "对话步数",
+      stepsTitle: "当前会话的总步数",
+      noToolsYet: "尚未调用任何工具。",
+      toolCount: (n) => `${n} 次`,
+      languageLabel: "显示语言 / Language",
+      usageCardTitle: "用量",
+      usageHeaderTitle: "点击展开/折叠用量详情",
+      usageMiniListTitle: "点击展开用量详情",
+      windowWeekly: "每周限额",
+      window5h: "5小时限额",
+      percentLeft: (pct) => `剩余 ${pct}%`,
+      resetsIn: (dur) => (dur === "即将" ? "即将重置" : `${dur}后重置`),
+      inlineSubWithReset: (win, dur) => (dur === "即将" ? `${win}・即将重置` : `${win}・${dur}后重置`),
+      resetSoon: "即将",
+      quotaLoadingShort: "获取中...",
+      quotaLoadingTitle: "正在从 Language Server 获取用量信息",
+      quotaLoadingSummary: "...",
+      quotaLoadingMsg: "正在从 Language Server 获取配额信息...",
+      quotaUnavailableShort: "不可用",
+      quotaUnavailableTitle: "无法连接 Language Server，暂无法获取用量",
+      quotaUnavailableSummary: "LS 未连接",
+      quotaUnavailableMsg: "未能从 Language Server 获取配额信息。",
+      toastOpenPaneUnsupported: "当前视图不支持打开文件",
+      toastOpenPaneFailed: "无法打开文件",
+      toastRefreshed: "已更新最新上下文信息",
+      toastRefreshingBusy: "正在刷新中...",
+      toastRefreshFailed: (e) => `刷新失败: ${e}`,
+      toastCopiedCompact: "已复制 /compact，请粘贴到聊天框并发送",
+      toastCopyFailed: "复制到剪贴板失败",
+      unknownError: "未知错误",
+      errTool: "工具错误",
+      errEmptyResponse: "响应数据为空",
+      errRpc: "RPC 错误",
+      catLabel: {
+        messages: "消息",
+        system_tools: "系统工具",
+        mcp_tools: "MCP 工具",
+        system_prompt: "系统提示词",
+        skills: "Skills",
+        memory_files: "记忆文件 / Rules",
+      },
+      catDetail: {
+        messages: (steps) => `用户输入 + 助手回复 (${steps} 步)`,
+        system_tools: (calls) => `内置工具定义与执行结果 (${calls} 次调用)`,
+        mcp_tools: () => "MCP 工具定义与响应",
+        system_prompt: () => "核心指令、准则与环境元数据",
+        skills: () => "技能目录与已加载的 SKILL.md",
+        memory_files: () => "全局规则 (GEMINI.md / AGENTS.md)",
+      },
+    },
+  };
+
+  // 状態管理
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialExplicitSessionId = urlParams.get("session_id") || null;
+  const initialHostConvId = urlParams.get("conversationId") || null;
+  const state = {
+    expanded: false,
+    sessionId: initialExplicitSessionId || initialHostConvId,
+    hostConversationId: initialHostConvId,
+    userSelectedSession: Boolean(initialExplicitSessionId),
+    threshold: 400000,
+    language: "auto",
+    hostLocale: "",
+    stats: null,
+    hostCapabilities: {},
+    settingsHydrated: false,
+    currentTheme: null,
+  };
+
+  function resolveLang() {
+    if (state.language === "ja" || state.language === "en" || state.language === "zh") {
+      return state.language;
+    }
+    const loc = String(state.hostLocale || navigator.language || "en").toLowerCase();
+    if (loc.startsWith("ja")) return "ja";
+    if (loc.startsWith("zh")) return "zh";
+    return "en";
+  }
+
+  function t(key, ...args) {
+    const dict = I18N[resolveLang()] || I18N.en;
+    const val = dict[key];
+    return typeof val === "function" ? val(...args) : val;
+  }
+
+  let isRefreshing = false;
+  let hasLiveRefresh = false;
+  let pollTimerId = null;
+  let toastTimerId = null;
+  let quotaUnavailableCount = 0;
+  const appliedHostVarKeys = new Set();
+
+  const mainCard = document.getElementById("mainCard");
+  const summaryHeader = document.getElementById("summaryHeader");
+  const progressTrack = document.getElementById("progressTrack");
+  const detailsPanel = document.getElementById("detailsPanel");
+  const toggleExpandBtn = document.getElementById("toggleExpandBtn");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const thresholdSelect = document.getElementById("thresholdSelect");
+  const sessionSelect = document.getElementById("sessionSelect");
+  const languageSelect = document.getElementById("languageSelect");
+  const compactBtn = document.getElementById("compactBtn");
+  const toastEl = document.getElementById("toast");
+
+  function translateWindowLabel(raw) {
+    const s = String(raw || "").trim();
+    const sl = s.toLowerCase();
+    if (sl === "weekly limit") return t("windowWeekly");
+    if (sl === "5h limit") return t("window5h");
+    return s;
+  }
+
+  function translateResetDuration(raw) {
+    const s = String(raw || "").trim();
+    if (!s) return "";
+    const lang = resolveLang();
+    if (lang === "ja") {
+      if (s.toLowerCase() === "soon") return t("resetSoon");
+      return s
+        .replace(/(\d+)\s*d\b/gi, "$1日")
+        .replace(/(\d+)\s*h\b/gi, "$1時間")
+        .replace(/(\d+)\s*m\b/gi, "$1分")
+        .replace(/\s+/g, "");
+    }
+    if (lang === "zh") {
+      if (s.toLowerCase() === "soon") return t("resetSoon");
+      return s
+        .replace(/(\d+)\s*d\b/gi, "$1天")
+        .replace(/(\d+)\s*h\b/gi, "$1小时")
+        .replace(/(\d+)\s*m\b/gi, "$1分钟")
+        .replace(/\s+/g, "");
+    }
+    return s;
+  }
+
+  function updateExpandButtonLabel() {
+    const usageCardEl = document.getElementById("usageCard");
+    const isUsageVisible = Boolean(usageCardEl && usageCardEl.style.display !== "none");
+    const allExpanded = isUsageVisible ? (state.expanded && !usageCollapsed) : state.expanded;
+    toggleExpandBtn.textContent = allExpanded ? t("expandCompact") : t("expandDetails");
+  }
+
+  function applyStaticTranslations() {
+    const lang = resolveLang();
+    document.documentElement.lang = (lang === "zh") ? "zh-CN" : lang;
+
+    document.getElementById("headerTitle").textContent = t("headerTitle");
+    document.getElementById("liveDot").title = t("liveDotTitle");
+    refreshBtn.textContent = t("refreshBtn");
+    refreshBtn.title = t("refreshBtnTitle");
+    updateExpandButtonLabel();
+    toggleExpandBtn.title = t("toggleExpandTitle");
+    document.getElementById("usageLabel").textContent = t("usageUsed");
+    document.getElementById("mainChevron").title = t("mainChevronTitle");
+    document.getElementById("thresholdTitle").textContent = t("thresholdTitle");
+    document.getElementById("thresholdDesc").innerHTML = t("thresholdDescHtml");
+    document.getElementById("toolsHeaderLabel").textContent = t("toolsHeader");
+    document.getElementById("skillsHeaderLabel").textContent = t("skillsHeader");
+    document.getElementById("skillsSubBody").textContent = t("skillsDesc");
+    compactBtn.textContent = t("compactBtn");
+    compactBtn.title = t("compactBtnTitle");
+    document.getElementById("artifactsTitle").textContent = t("artifactsTitle");
+    document.getElementById("sessionHeaderLabel").textContent = t("sessionHeader");
+    document.getElementById("languageLabel").textContent = t("languageLabel");
+    document.getElementById("usageCardTitle").textContent = t("usageCardTitle");
+    document.getElementById("usageCardHeader").title = t("usageHeaderTitle");
+    document.getElementById("usageMinimizedList").title = t("usageMiniListTitle");
+    if (!state.stats) {
+      document.getElementById("remainingCompactText").textContent = t("remainingCompactPlaceholder");
+    }
+  }
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    if (toastTimerId) clearTimeout(toastTimerId);
+    toastTimerId = setTimeout(() => toastEl.classList.remove("show"), 2500);
+  }
+
+  function setExpanded(exp, persist) {
+    state.expanded = Boolean(exp);
+    if (state.expanded) {
+      mainCard.classList.add("expanded");
+    } else {
+      mainCard.classList.remove("expanded");
+    }
+    updateExpandButtonLabel();
+    if (persist) {
+      saveSettings({ expanded: state.expanded });
+    }
+    notifySizeChanged();
+  }
+
+  // シンプルカードの上部またはバーをクリックしたら個別展開・折りたたみ
+  summaryHeader.addEventListener("click", () => setExpanded(!state.expanded, true));
+  progressTrack.addEventListener("click", () => setExpanded(!state.expanded, true));
+  // 最右上ボタンはコンテキストと使用量の両方を一括展開・折りたたみ
+  toggleExpandBtn.addEventListener("click", () => {
+    const usageCardEl = document.getElementById("usageCard");
+    const isUsageVisible = Boolean(usageCardEl && usageCardEl.style.display !== "none");
+    const allExpanded = isUsageVisible ? (state.expanded && !usageCollapsed) : state.expanded;
+    const nextExpanded = !allExpanded;
+    setExpanded(nextExpanded, false);
+    usageCollapsed = !nextExpanded;
+    updateUsageCollapseUI();
+    saveSettings({ expanded: nextExpanded, usageCollapsed: !nextExpanded });
+  });
+
+  // 詳細パネル内のクリックで閉じないようにする
+  detailsPanel.addEventListener("click", (e) => e.stopPropagation());
+
+  // サブアコーディオン開閉
+  document.getElementById("toolsSubHeader").addEventListener("click", () => {
+    document.getElementById("toolsSubSection").classList.toggle("sub-open");
+    notifySizeChanged();
+  });
+  document.getElementById("skillsSubHeader").addEventListener("click", () => {
+    document.getElementById("skillsSubSection").classList.toggle("sub-open");
+    notifySizeChanged();
+  });
+
+  // Usageカードの折りたたみ/展開（デフォルトは最小化＝全グループミニバッジ表示）
+  const usageCardHeader = document.getElementById("usageCardHeader");
+  const usageMinimizedList = document.getElementById("usageMinimizedList");
+  const usageGroupsContainer = document.getElementById("usageGroupsContainer");
+  const usageChevron = document.getElementById("usageChevron");
+  const usageMinimizedSummary = document.getElementById("usageMinimizedSummary");
+  const usageActiveModelLabel = document.getElementById("usageActiveModelLabel");
+  let usageCollapsed = true;
+
+  function formatShortUsageGroupName(groupName) {
+    const g = String(groupName || "").trim();
+    const gl = g.toLowerCase();
+    if (gl === "gemini models") return "Gemini";
+    if (gl.includes("claude") || gl.includes("gpt")) return "Claude/GPT";
+    if (gl.includes("argon")) return "Argon";
+    return g || "Other";
+  }
+
+  function updateUsageCollapseUI() {
+    const hasMiniChips = usageMinimizedList.childElementCount > 0;
+    usageGroupsContainer.style.display = usageCollapsed ? "none" : "block";
+    usageMinimizedList.style.display = (usageCollapsed && hasMiniChips) ? "flex" : "none";
+    usageMinimizedSummary.style.display = usageCollapsed ? "inline-flex" : "none";
+    usageActiveModelLabel.style.display = usageCollapsed ? "inline" : "none";
+    usageChevron.textContent = usageCollapsed ? "▾" : "▴";
+    updateExpandButtonLabel();
+    notifySizeChanged();
+  }
+
+  function toggleUsageCollapsed() {
+    usageCollapsed = !usageCollapsed;
+    updateUsageCollapseUI();
+    saveSettings({ usageCollapsed });
+  }
+
+  usageCardHeader.addEventListener("click", toggleUsageCollapsed);
+  usageMinimizedList.addEventListener("click", toggleUsageCollapsed);
+
+  function updateCapabilityUI() {
+    // 圧縮ボタンは /compact スラッシュコマンド誤送信を防ぐため常にコピー方式とする
+  }
+
+  function applyHydratedSettings(saved) {
+    if (!saved || state.settingsHydrated) return;
+    state.settingsHydrated = true;
+
+    if (typeof saved.language === "string" && ["auto", "ja", "en", "zh"].includes(saved.language)) {
+      state.language = saved.language;
+      languageSelect.value = saved.language;
+    }
+
+    if (typeof saved.threshold === "number" && saved.threshold > 0) {
+      state.threshold = saved.threshold;
+      const strVal = String(saved.threshold);
+      let hasOption = Array.from(thresholdSelect.options).some((opt) => opt.value === strVal);
+      if (!hasOption) {
+        const customOpt = document.createElement("option");
+        customOpt.value = strVal;
+        customOpt.textContent = formatTokens(saved.threshold);
+        thresholdSelect.appendChild(customOpt);
+      }
+      thresholdSelect.value = strVal;
+    }
+
+    if (typeof saved.expanded === "boolean") {
+      setExpanded(saved.expanded, false);
+    }
+
+    if (typeof saved.usageCollapsed === "boolean") {
+      usageCollapsed = saved.usageCollapsed;
+      updateUsageCollapseUI();
+    }
+
+    applyStaticTranslations();
+  }
+
+  function createCategoryRow(dotStyle, labelText, tokensText, pctText, titleText, underlined) {
+    const row = document.createElement("div");
+    row.className = "category-item";
+    if (titleText) row.title = titleText;
+
+    const dot = document.createElement("span");
+    dot.className = "cat-dot";
+    if (dotStyle.background) dot.style.background = dotStyle.background;
+    if (dotStyle.border) dot.style.border = dotStyle.border;
+
+    const name = document.createElement("span");
+    name.className = underlined ? "cat-name underlined" : "cat-name";
+    name.textContent = labelText;
+
+    const tokens = document.createElement("span");
+    tokens.className = "cat-tokens";
+    tokens.textContent = tokensText;
+
+    const pct = document.createElement("span");
+    pct.className = "cat-pct";
+    pct.textContent = pctText;
+
+    row.appendChild(dot);
+    row.appendChild(name);
+    row.appendChild(tokens);
+    row.appendChild(pct);
+    return row;
+  }
+
+  // UI描画
+  function renderStats(data) {
+    if (!data || data.error) return;
+    state.stats = data;
+
+    if (data.savedSettings && !state.settingsHydrated) {
+      applyHydratedSettings(data.savedSettings);
+    }
+
+    const lang = resolveLang();
+    const dict = I18N[lang] || I18N.en;
+    const used = data.totalUsedTokens || 0;
+    const threshold = data.autoCompactThreshold || state.threshold || 400000;
+    const pct = Math.min(100, Math.round((used / threshold) * 100));
+
+    document.getElementById("usagePercentText").textContent = pct + "%";
+    document.getElementById("usageFractionText").textContent =
+      formatTokens(used) + " / " + formatTokens(threshold);
+
+    const subEl = document.getElementById("sessionSubtitle");
+    const rawTitle = data.sessionTitle || (data.sessionId ? data.sessionId.slice(0, 8) : "");
+    const displayTitle = (rawTitle === "新規セッション (未送信)") ? t("newSessionTitle") : rawTitle;
+    if (!displayTitle) {
+      subEl.textContent = "";
+      subEl.title = "";
+    } else if (state.userSelectedSession) {
+      subEl.textContent = `${t("pinnedPrefix")}: ${displayTitle}`;
+      subEl.title = t("pinnedTooltip", displayTitle);
+    } else {
+      subEl.textContent = `${t("latestPrefix")}: ${displayTitle}`;
+      subEl.title = t("latestTooltip", displayTitle);
+    }
+    if (data.updatedAt) {
+      document.getElementById("updatedAtText").textContent = t("updatedAt", data.updatedAt);
+    }
+
+    // ツール呼び出し合計をカテゴリ詳細文言用に先に算出
+    const toolCounts = data.toolCallCounts || {};
+    const toolEntries = Object.entries(toolCounts).sort((a, b) => b[1] - a[1]);
+    const totalTools = toolEntries.reduce((acc, cur) => acc + cur[1], 0);
+    const stepCount = data.stepCount || 0;
+
+    function getCategoryLabel(cat) {
+      return (dict.catLabel && dict.catLabel[cat.id]) || cat.label || "";
+    }
+
+    function getCategoryDetail(cat) {
+      const fn = dict.catDetail && dict.catDetail[cat.id];
+      if (typeof fn === "function") {
+        if (cat.id === "messages") return fn(stepCount);
+        if (cat.id === "system_tools") return fn(totalTools);
+        return fn();
+      }
+      return cat.detail || "";
+    }
+
+    // プログレスバーのセグメント描画
+    const categories = data.categories || [];
+    progressTrack.innerHTML = "";
+    categories.forEach((cat) => {
+      if (cat.tokens <= 0) return;
+      const widthPct = Math.max(0.8, Math.min(100, (cat.tokens / threshold) * 100));
+      const seg = document.createElement("div");
+      seg.className = "progress-segment";
+      seg.style.width = widthPct + "%";
+      seg.style.background = sanitizeColor(cat.color, "#94a3b8");
+      seg.title = `${getCategoryLabel(cat)}: ${formatTokens(cat.tokens)} (${cat.percent}%)`;
+      progressTrack.appendChild(seg);
+    });
+
+    // カテゴリ一覧の描画
+    const categoryList = document.getElementById("categoryList");
+    categoryList.innerHTML = "";
+    categories.forEach((cat) => {
+      const underlined = (cat.id === "mcp_tools" || cat.id === "skills" || cat.id === "memory_files");
+      const row = createCategoryRow(
+        { background: sanitizeColor(cat.color, "#94a3b8") },
+        getCategoryLabel(cat),
+        formatTokens(cat.tokens),
+        Number(cat.percent || 0).toFixed(1) + "%",
+        getCategoryDetail(cat),
+        underlined
+      );
+      categoryList.appendChild(row);
+    });
+
+    // 空き容量
+    const capacityList = document.getElementById("capacityList");
+    capacityList.innerHTML = "";
+    capacityList.appendChild(
+      createCategoryRow(
+        { background: "var(--bg-tertiary)", border: "1px solid var(--border-primary)" },
+        t("freeLabel"),
+        formatTokens(data.freeTokens || 0),
+        Number(data.freePercent || 0).toFixed(1) + "%",
+        t("freeTitle"),
+        false
+      )
+    );
+
+    // キャッシュヒット率・ステップ数
+    const cacheList = document.getElementById("cacheList");
+    cacheList.innerHTML = "";
+    cacheList.appendChild(
+      createCategoryRow(
+        { background: "var(--text-tertiary)" },
+        t("cachedLabel"),
+        formatTokens(data.latestCacheTokens || 0),
+        Number(data.cacheHitRate || 0).toFixed(0) + "%",
+        t("cachedTitle"),
+        false
+      )
+    );
+    cacheList.appendChild(
+      createCategoryRow(
+        { background: "var(--text-tertiary)" },
+        t("stepsLabel"),
+        String(stepCount),
+        "—",
+        t("stepsTitle"),
+        false
+      )
+    );
+
+    // ツール呼び出し内訳（DOM APIで安全に構築）
+    document.getElementById("toolsTotalCount").textContent = String(totalTools);
+    const toolsSubBody = document.getElementById("toolsSubBody");
+    toolsSubBody.innerHTML = "";
+    if (toolEntries.length === 0) {
+      toolsSubBody.textContent = t("noToolsYet");
+    } else {
+      toolEntries.forEach(([k, v]) => {
+        const row = document.createElement("div");
+        row.className = "tool-row";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = k;
+        const countSpan = document.createElement("span");
+        countSpan.textContent = t("toolCount", v);
+        row.appendChild(nameSpan);
+        row.appendChild(countSpan);
+        toolsSubBody.appendChild(row);
+      });
+    }
+
+    // Skills数
+    document.getElementById("skillsTotalCount").textContent = String(data.skillsCount || 0);
+
+    // 目安上限までの残りトークン（空き容量と一致）
+    const rem = Math.max(0, threshold - used);
+    document.getElementById("remainingCompactText").textContent =
+      t("remainingCompact", formatTokens(rem));
+
+    // 成果物リスト（DOM APIで安全に構築）
+    const artifacts = data.artifacts || [];
+    const artifactsSection = document.getElementById("artifactsSection");
+    const artifactList = document.getElementById("artifactList");
+    if (artifacts.length > 0) {
+      artifactsSection.style.display = "block";
+      artifactList.innerHTML = "";
+      artifacts.forEach((art) => {
+        const item = document.createElement("div");
+        item.className = "artifact-item";
+        const iconSpan = document.createElement("span");
+        iconSpan.textContent = "📄";
+        const nameSpan = document.createElement("span");
+        nameSpan.style.overflow = "hidden";
+        nameSpan.style.textOverflow = "ellipsis";
+        nameSpan.style.whiteSpace = "nowrap";
+        nameSpan.textContent = art.name || "";
+        item.appendChild(iconSpan);
+        item.appendChild(nameSpan);
+        item.addEventListener("click", () => openFileInAuxPane(art.uri));
+        artifactList.appendChild(item);
+      });
+    } else {
+      artifactsSection.style.display = "none";
+    }
+
+    // セッション選択プルダウン（先頭に自動追従オプション）
+    const sessions = data.sessions || [];
+    sessionSelect.innerHTML = "";
+    const autoOpt = document.createElement("option");
+    autoOpt.value = AUTO_FOLLOW_VALUE;
+    autoOpt.textContent = displayTitle
+      ? t("autoFollowWithTitle", displayTitle)
+      : t("autoFollowDefault");
+    if (!state.userSelectedSession) {
+      autoOpt.selected = true;
+    }
+    sessionSelect.appendChild(autoOpt);
+
+    sessions.forEach((s) => {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      const st = (s.title === "新規セッション (未送信)") ? t("newSessionTitle") : s.title;
+      opt.textContent = st ? `${st} (${s.updatedAt})` : `[${s.updatedAt}] ${s.id.slice(0, 8)}`;
+      if (state.userSelectedSession && s.id === state.sessionId) {
+        opt.selected = true;
+      }
+      sessionSelect.appendChild(opt);
+    });
+
+    // Usage（モデル別クォータ残量）の描画
+    const usageGroups = data.usageGroups || [];
+    const usageCard = document.getElementById("usageCard");
+    if (usageGroups.length > 0) {
+      quotaUnavailableCount = 0;
+      usageCard.style.display = "block";
+      usageGroupsContainer.innerHTML = "";
+      usageMinimizedList.innerHTML = "";
+      usageActiveModelLabel.textContent = "";
+      usageActiveModelLabel.title = "";
+      usageMinimizedSummary.innerHTML = "";
+      usageMinimizedSummary.title = "";
+      const radius = 7;
+      const circumference = 2 * Math.PI * radius;
+
+      usageGroups.forEach((grp) => {
+        const items = grp.items || [];
+        if (items.length > 0) {
+          const minItem = items.reduce((best, cur) => (
+            (Number(cur.percentLeft) || 0) < (Number(best.percentLeft) || 0) ? cur : best
+          ), items[0]);
+          const chipPct = Math.max(0, Math.min(100, Number(minItem.percentLeft) || 0));
+          const chipOffset = circumference - (chipPct / 100) * circumference;
+          const chipColor = chipPct <= 10 ? "#ef4444" : (chipPct <= 30 ? "#eab308" : "#22c55e");
+          const winText = translateWindowLabel(minItem.windowLabel);
+          const pctText = t("percentLeft", chipPct);
+          const resetDur = translateResetDuration(minItem.resetIn);
+
+          const chip = document.createElement("span");
+          chip.className = "usage-mini-chip";
+          chip.title = resetDur
+            ? `${grp.groupName}: ${winText} ${pctText} (${t("resetsIn", resetDur)})`
+            : `${grp.groupName}: ${winText} ${pctText}`;
+
+          const nameSpan = document.createElement("span");
+          nameSpan.textContent = formatShortUsageGroupName(grp.groupName);
+          const pctSpan = document.createElement("span");
+          pctSpan.className = "usage-mini-chip-pct";
+          pctSpan.textContent = `${chipPct}%`;
+
+          const svgWrap = document.createElement("span");
+          svgWrap.style.display = "inline-flex";
+          svgWrap.innerHTML = `
+            <svg class="ring-gauge-sm" viewBox="0 0 20 20">
+              <circle class="ring-bg" cx="10" cy="10" r="${radius}"></circle>
+              <circle class="ring-fg" cx="10" cy="10" r="${radius}"
+                stroke="${chipColor}"
+                stroke-dasharray="${circumference.toFixed(2)}"
+                stroke-dashoffset="${chipOffset.toFixed(2)}"></circle>
+            </svg>
+          `;
+
+          chip.appendChild(nameSpan);
+          chip.appendChild(pctSpan);
+          chip.appendChild(svgWrap.firstElementChild);
+          usageMinimizedList.appendChild(chip);
+        }
+
+        const grpEl = document.createElement("div");
+        grpEl.className = "usage-group";
+
+        if (grp.inlineSingle && items.length === 1) {
+          const it = items[0];
+          const pctLeft = Math.max(0, Math.min(100, Number(it.percentLeft) || 0));
+          const offset = circumference - (pctLeft / 100) * circumference;
+          const strokeColor = pctLeft <= 10 ? "#ef4444" : (pctLeft <= 30 ? "#eab308" : "#22c55e");
+          const winText = translateWindowLabel(it.windowLabel);
+          const resetDur = translateResetDuration(it.resetIn);
+          const subText = resetDur
+            ? t("inlineSubWithReset", winText, resetDur)
+            : winText;
+
+          grpEl.innerHTML = `
+            <div class="usage-bucket-row" style="margin-bottom:0;">
+              <div class="usage-bucket-left">
+                <div class="usage-group-title" style="margin-bottom:2px;">${escapeHtml(grp.groupName)}</div>
+                <div class="usage-reset-label">${escapeHtml(subText)}</div>
+              </div>
+              <div class="usage-bucket-right">
+                <span>${escapeHtml(t("percentLeft", pctLeft))}</span>
+                <svg class="ring-gauge" viewBox="0 0 20 20">
+                  <circle class="ring-bg" cx="10" cy="10" r="${radius}"></circle>
+                  <circle class="ring-fg" cx="10" cy="10" r="${radius}"
+                    stroke="${strokeColor}"
+                    stroke-dasharray="${circumference.toFixed(2)}"
+                    stroke-dashoffset="${offset.toFixed(2)}"></circle>
+                </svg>
+              </div>
+            </div>
+          `;
+        } else {
+          let rowsHtml = `<div class="usage-group-title">${escapeHtml(grp.groupName)}</div>`;
+          items.forEach((it) => {
+            const pctLeft = Math.max(0, Math.min(100, Number(it.percentLeft) || 0));
+            const offset = circumference - (pctLeft / 100) * circumference;
+            const strokeColor = pctLeft <= 10 ? "#ef4444" : (pctLeft <= 30 ? "#eab308" : "#22c55e");
+            const winText = translateWindowLabel(it.windowLabel);
+            const resetDur = translateResetDuration(it.resetIn);
+            const resetHtml = resetDur
+              ? `<div class="usage-reset-label">${escapeHtml(t("resetsIn", resetDur))}</div>`
+              : "";
+            rowsHtml += `
+              <div class="usage-bucket-row">
+                <div class="usage-bucket-left">
+                  <div class="usage-window-label">${escapeHtml(winText)}</div>
+                  ${resetHtml}
+                </div>
+                <div class="usage-bucket-right">
+                  <span>${escapeHtml(t("percentLeft", pctLeft))}</span>
+                  <svg class="ring-gauge" viewBox="0 0 20 20">
+                    <circle class="ring-bg" cx="10" cy="10" r="${radius}"></circle>
+                    <circle class="ring-fg" cx="10" cy="10" r="${radius}"
+                      stroke="${strokeColor}"
+                      stroke-dasharray="${circumference.toFixed(2)}"
+                      stroke-dashoffset="${offset.toFixed(2)}"></circle>
+                  </svg>
+                </div>
+              </div>
+            `;
+          });
+          grpEl.innerHTML = rowsHtml;
+        }
+        usageGroupsContainer.appendChild(grpEl);
+      });
+      updateUsageCollapseUI();
+    } else if (data.quotaStatus === "unavailable") {
+      quotaUnavailableCount += 1;
+      usageCard.style.display = "block";
+      usageMinimizedList.innerHTML = "";
+      const isInitialRetry = quotaUnavailableCount < 2;
+      usageActiveModelLabel.textContent = isInitialRetry ? t("quotaLoadingShort") : t("quotaUnavailableShort");
+      usageActiveModelLabel.title = isInitialRetry
+        ? t("quotaLoadingTitle")
+        : t("quotaUnavailableTitle");
+      usageMinimizedSummary.textContent = isInitialRetry ? t("quotaLoadingSummary") : t("quotaUnavailableSummary");
+      usageGroupsContainer.innerHTML = "";
+      const msgDiv = document.createElement("div");
+      msgDiv.style.fontSize = "12px";
+      msgDiv.style.color = "var(--text-tertiary)";
+      msgDiv.textContent = isInitialRetry
+        ? t("quotaLoadingMsg")
+        : t("quotaUnavailableMsg");
+      usageGroupsContainer.appendChild(msgDiv);
+      updateUsageCollapseUI();
+    } else {
+      quotaUnavailableCount = 0;
+      usageMinimizedList.innerHTML = "";
+      usageCard.style.display = "none";
+      updateExpandButtonLabel();
+    }
+
+    notifySizeChanged();
+  }
+
+  // --- MCP App postMessage JSON-RPC Bridge ---
+  let nextRpcId = 1;
+  const pendingRpc = new Map();
+
+  function sendRpcRequest(method, params) {
+    return new Promise((resolve, reject) => {
+      const id = nextRpcId++;
+      const timerId = setTimeout(() => {
+        if (pendingRpc.has(id)) {
+          pendingRpc.delete(id);
+          reject(new Error(`RPC timeout: ${method}`));
+        }
+      }, RPC_TIMEOUT_MS);
+      pendingRpc.set(id, { resolve, reject, timerId });
+      window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+    });
+  }
+
+  function sendRpcNotification(method, params) {
+    window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+  }
+
+  function notifySizeChanged() {
+    requestAnimationFrame(() => {
+      const height = document.documentElement.scrollHeight;
+      sendRpcNotification("ui/notifications/size-changed", { height });
+    });
+  }
+
+  function inferThemeFromColor(colorStr) {
+    const c = String(colorStr || "").trim();
+    if (!c) return null;
+    let r, g, b;
+    const hexMatch = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+    if (hexMatch) {
+      let hex = hexMatch[1];
+      if (hex.length === 3) {
+        r = parseInt(hex[0] + hex[0], 16);
+        g = parseInt(hex[1] + hex[1], 16);
+        b = parseInt(hex[2] + hex[2], 16);
+      } else {
+        r = parseInt(hex.slice(0, 2), 16);
+        g = parseInt(hex.slice(2, 4), 16);
+        b = parseInt(hex.slice(4, 6), 16);
+      }
+    } else {
+      const rgbMatch = c.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i);
+      if (!rgbMatch) return null;
+      r = Number(rgbMatch[1]);
+      g = Number(rgbMatch[2]);
+      b = Number(rgbMatch[3]);
+    }
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return luminance > 128 ? "light" : "dark";
+  }
+
+  function applyThemeVariables(ctx) {
+    if (!ctx) return;
+
+    let nextTheme = null;
+    if (typeof ctx.theme === "string" && ctx.theme.trim()) {
+      const tl = ctx.theme.trim().toLowerCase();
+      if (tl.includes("light")) nextTheme = "light";
+      else if (tl.includes("dark")) nextTheme = "dark";
+    }
+
+    const vars = (ctx.styles && ctx.styles.variables && typeof ctx.styles.variables === "object")
+      ? ctx.styles.variables
+      : null;
+
+    if (!nextTheme && !vars) {
+      return;
+    }
+
+    if (!nextTheme && vars) {
+      nextTheme = inferThemeFromColor(vars["--color-background-primary"] || vars["--bg-primary"]);
+    }
+
+    const themeChanged = Boolean(nextTheme && nextTheme !== state.currentTheme);
+    if (themeChanged || vars) {
+      // テーマ変化時または新しいスタイル変数到着時に前回インライン設定したホスト変数をクリア
+      appliedHostVarKeys.forEach((k) => {
+        document.documentElement.style.removeProperty(k);
+      });
+      appliedHostVarKeys.clear();
+    }
+
+    if (nextTheme) {
+      document.documentElement.dataset.theme = nextTheme;
+      document.documentElement.style.colorScheme = nextTheme;
+      state.currentTheme = nextTheme;
+    }
+
+    if (vars) {
+      for (const [k, v] of Object.entries(vars)) {
+        if (v) {
+          document.documentElement.style.setProperty(k, v);
+          appliedHostVarKeys.add(k);
+        }
+      }
+    }
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
+    const msg = event.data;
+    if (!msg || msg.jsonrpc !== "2.0") return;
+
+    // レスポンスの処理
+    if (msg.id !== undefined && (msg.result !== undefined || msg.error !== undefined)) {
+      const pending = pendingRpc.get(msg.id);
+      if (pending) {
+        clearTimeout(pending.timerId);
+        pendingRpc.delete(msg.id);
+        if (msg.error) pending.reject(msg.error);
+        else pending.resolve(msg.result);
+      }
+      return;
+    }
+
+    // Host からの ping 等への応答
+    if (msg.id !== undefined && msg.method === "ping") {
+      window.parent.postMessage({ jsonrpc: "2.0", id: msg.id, result: {} }, "*");
+      return;
+    }
+
+    // Host からの Notification
+    if (msg.method === "ui/notifications/tool-input") {
+      hasLiveRefresh = false;
+      const args = (msg.params && msg.params.arguments) || {};
+      if (args.session_id) {
+        state.sessionId = args.session_id;
+        state.userSelectedSession = true;
+      }
+    } else if (msg.method === "ui/notifications/tool-result") {
+      const sc = msg.params && msg.params.structuredContent;
+      if (sc && !hasLiveRefresh) renderStats(sc);
+    } else if (msg.method === "ui/notifications/host-context-changed") {
+      if (msg.params && msg.params.conversationId) {
+        const prevConv = state.hostConversationId;
+        state.hostConversationId = msg.params.conversationId;
+        if (!state.userSelectedSession) {
+          state.sessionId = msg.params.conversationId;
+          if (prevConv !== msg.params.conversationId) {
+            refreshStats();
+          }
+        }
+      }
+      if (msg.params && msg.params.locale && msg.params.locale !== state.hostLocale) {
+        state.hostLocale = msg.params.locale;
+        applyStaticTranslations();
+        if (state.stats) {
+          renderStats(state.stats);
+        }
+      }
+      applyThemeVariables(msg.params);
+    }
+  });
+
+  async function saveSettings(patch) {
+    try {
+      const cleanArgs = {};
+      if (patch && typeof patch === "object") {
+        for (const [k, v] of Object.entries(patch)) {
+          if (v !== null && v !== undefined) {
+            cleanArgs[k] = v;
+          }
+        }
+      }
+      await sendRpcRequest("tools/call", {
+        name: "save_context_settings",
+        arguments: cleanArgs
+      });
+    } catch (err) {
+      // 設定保存失敗時はUI動作を止めない
+    }
+  }
+
+  // サーバーツール呼び出しで最新データを取得（多重実行ガード付き）
+  async function refreshStats() {
+    if (isRefreshing) return { ok: false, busy: true };
+    isRefreshing = true;
+    try {
+      const targetSid = state.userSelectedSession ? state.sessionId : state.hostConversationId;
+      const args = { threshold: state.threshold };
+      if (typeof targetSid === "string" && targetSid.trim()) {
+        args.session_id = targetSid.trim();
+      }
+      const res = await sendRpcRequest("tools/call", {
+        name: "refresh_context_stats",
+        arguments: args
+      });
+      if (res && res.isError) {
+        const textMsg = Array.isArray(res.content)
+          ? res.content.map((c) => (c && c.text) || "").filter(Boolean).join(" ")
+          : "";
+        return { ok: false, error: textMsg || t("errTool") };
+      }
+      if (res && res.structuredContent) {
+        hasLiveRefresh = true;
+        renderStats(res.structuredContent);
+        return { ok: true };
+      }
+      return { ok: false, error: t("errEmptyResponse") };
+    } catch (err) {
+      const errMsg = (err && (err.message || err.msg)) ? String(err.message || err.msg) : String(err || t("errRpc"));
+      return { ok: false, error: errMsg };
+    } finally {
+      isRefreshing = false;
+    }
+  }
+
+  function scheduleNextPoll() {
+    if (pollTimerId) clearTimeout(pollTimerId);
+    const isInitialQuotaRetry = !document.hidden && quotaUnavailableCount === 1;
+    const delay = document.hidden ? 15000 : (isInitialQuotaRetry ? 2200 : 5000);
+    pollTimerId = setTimeout(pollLoop, delay);
+  }
+
+  async function pollLoop() {
+    await refreshStats();
+    scheduleNextPoll();
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      refreshStats().then(scheduleNextPoll);
+    } else {
+      scheduleNextPoll();
+    }
+  });
+
+  // ファイルビューで成果物を開く
+  async function openFileInAuxPane(uri) {
+    try {
+      const res = await sendRpcRequest("com.google.antigravity/toggle-aux-pane", {
+        tabType: "fileView",
+        uri: uri
+      });
+      if (res && res.isError) {
+        showToast(t("toastOpenPaneUnsupported"));
+      }
+    } catch (e) {
+      showToast(t("toastOpenPaneFailed"));
+    }
+  }
+
+  // イベントリスナー
+  refreshBtn.addEventListener("click", async () => {
+    const r = await refreshStats();
+    if (r && r.ok) {
+      showToast(t("toastRefreshed"));
+    } else if (r && r.busy) {
+      showToast(t("toastRefreshingBusy"));
+    } else {
+      showToast(t("toastRefreshFailed", (r && r.error) || t("unknownError")));
+    }
+  });
+
+  thresholdSelect.addEventListener("change", (e) => {
+    state.threshold = Number(e.target.value) || 400000;
+    saveSettings({ threshold: state.threshold });
+    refreshStats();
+  });
+
+  sessionSelect.addEventListener("change", (e) => {
+    const val = e.target.value;
+    if (val === AUTO_FOLLOW_VALUE) {
+      state.userSelectedSession = false;
+      state.sessionId = null;
+    } else {
+      state.sessionId = val;
+      state.userSelectedSession = true;
+    }
+    refreshStats();
+  });
+
+  languageSelect.addEventListener("change", (e) => {
+    const next = e.target.value;
+    if (["auto", "ja", "en", "zh"].includes(next)) {
+      state.language = next;
+      saveSettings({ language: state.language });
+      applyStaticTranslations();
+      if (state.stats) {
+        renderStats(state.stats);
+      }
+    }
+  });
+
+  async function copyTextToClipboard(text) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        // sandboxed iframe で Clipboard API が拒否された場合は execCommand フォールバックへ進む
+      }
+    }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return Boolean(ok);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  compactBtn.addEventListener("click", async () => {
+    const ok = await copyTextToClipboard("/compact");
+    if (ok) {
+      showToast(t("toastCopiedCompact"));
+    } else {
+      showToast(t("toastCopyFailed"));
+    }
+  });
+
+  // 初期化ハンドシェイク
+  async function initApp() {
+    applyStaticTranslations();
+    try {
+      const initRes = await sendRpcRequest("ui/initialize", {
+        protocolVersion: "2026-01-26",
+        appInfo: { name: "Context Monitor", version: "1.0.0" },
+        appCapabilities: {}
+      });
+      if (initRes) {
+        state.hostCapabilities = initRes.hostCapabilities || {};
+        if (initRes.hostContext) {
+          if (initRes.hostContext.conversationId) {
+            state.hostConversationId = initRes.hostContext.conversationId;
+            if (!state.userSelectedSession) {
+              state.sessionId = initRes.hostContext.conversationId;
+            }
+          }
+          if (initRes.hostContext.locale) {
+            state.hostLocale = initRes.hostContext.locale;
+          }
+        }
+        applyThemeVariables(initRes.hostContext);
+      }
+      applyStaticTranslations();
+      updateCapabilityUI();
+      sendRpcNotification("ui/notifications/initialized", {});
+      notifySizeChanged();
+      // 初回データ取得＆完了ベースの後続ポーリング開始
+      setTimeout(async () => {
+        await refreshStats();
+        scheduleNextPoll();
+      }, 200);
+    } catch (e) {
+      console.error("MCP App init error:", e);
+    }
+  }
+
+  initApp();
+})();
+</script>
+</body>
+</html>

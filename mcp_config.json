@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "monitor": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "${PLUGIN_ROOT}/bin/run_server.cmd",
+        "--data_dir=${PLUGIN_DATA}"
+      ],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}
